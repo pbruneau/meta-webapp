@@ -1,0 +1,3 @@
+# One username and role per line. Supported roles: admin, user.
+reader-admin admin
+reader user

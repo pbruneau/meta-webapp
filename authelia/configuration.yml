@@ -1,0 +1,44 @@
+# authelia/configuration.yml
+
+server:
+  address: tcp://0.0.0.0:9091/
+
+identity_validation:
+  reset_password: {}
+
+totp:
+  issuer: pbruneau.ddns.net
+  period: 30
+  skew: 1
+
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+
+session:
+  name: authelia_session
+  expiration: 12h
+  inactivity: 12h
+  cookies:
+    - domain: pbruneau.ddns.net
+      authelia_url: https://pbruneau.ddns.net/authelia
+      default_redirection_url: https://pbruneau.ddns.net
+
+regulation:
+  max_retries: 3
+  find_time: 2m
+  ban_time: 5m
+
+storage:
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt
+
+access_control:
+  default_policy: deny
+  rules:
+    - domain: pbruneau.ddns.net
+      policy: one_factor

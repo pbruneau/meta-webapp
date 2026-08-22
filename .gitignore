@@ -1,0 +1,10 @@
+.env
+.env.lan
+.env.open
+filebrowser-users.conf
+
+authelia/db.sqlite3*
+authelia/secrets/
+authelia/users_database.yml
+filebrowser/
+authelia/notification.txt

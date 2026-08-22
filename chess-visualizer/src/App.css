@@ -1,0 +1,292 @@
+/* Base styling */
+* {
+  box-sizing: border-box;
+  touch-action: none; /* Prevents default touch actions */
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  overflow-x: hidden;
+}
+
+.chess-app {
+  max-width: 100%;
+  padding: 10px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Control buttons */
+.controls {
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 10px;
+}
+
+.controls button {
+  padding: 8px 16px;
+  background-color: #f8f9fa;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Board container with labels */
+.board-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 380px; /* Good size for iPhone 13 */
+}
+
+.file-labels {
+  display: flex;
+  width: calc(100% - 20px); /* Adjust for rank labels width */
+  margin-left: 20px;
+}
+
+.file-labels .label {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  padding: 2px 0;
+}
+
+.board-with-ranks {
+  display: flex;
+  width: 100%;
+}
+
+.rank-labels {
+  display: flex;
+  flex-direction: column;
+  width: 20px;
+}
+
+.rank-labels .label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* Chess board */
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: calc(100% - 20px);
+  aspect-ratio: 1 / 1;
+  border: 1px solid #222;
+}
+
+.cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cell.light {
+  background-color: #f0d9b5;
+}
+
+.cell.dark {
+  background-color: #b58863;
+}
+
+/* Chess pieces using SVG */
+.piece {
+  width: 90%;
+  height: 90%;
+  cursor: grab;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+}
+
+.piece svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Drag ghost */
+.piece-ghost {
+  position: fixed;
+  width: 50px;
+  height: 50px;
+  pointer-events: none;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  touch-action: none;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.piece-ghost svg {
+  width: 85%;
+  height: 85%;
+}
+
+/* Piece palette */
+.piece-palette {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.palette-row {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+}
+
+.palette-piece {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.palette-piece svg {
+  width: 85%;
+  height: 85%;
+  pointer-events: none;
+}
+
+/* Media queries for iPhone 13 */
+@media screen and (max-width: 390px) {
+  .board-container {
+    max-width: 340px;
+  }
+  
+  .controls button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .palette-piece {
+    width: 35px;
+    height: 35px;
+  }
+}
+
+/* FEN Input Section */
+.fen-input-section {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.fen-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.parse-button {
+  padding: 8px 16px;
+  background-color: #f8f9fa;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 390px) {
+  .fen-input-section {
+    max-width: 340px;
+  }
+  
+  .fen-input {
+    font-size: 12px;
+  }
+  
+  .parse-button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+
+
+/* Add to the existing App.css file */
+
+.fen-controls {
+  display: flex;
+  width: 100%;
+  max-width: 380px;
+  margin-bottom: 20px;
+  gap: 10px;
+}
+
+.fen-controls input {
+  flex-grow: 1;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.fen-controls button {
+  padding: 10px;
+  background-color: #f8f9fa;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+@media screen and (max-width: 390px) {
+  .fen-controls {
+    max-width: 340px;
+  }
+  
+  .fen-controls input {
+    padding: 6px;
+    font-size: 14px;
+  }
+  
+  .fen-controls button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stockfish Chess Analysis</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Stockfish Chess Analysis</h1>
+        
+        <div class="input-section">
+            <div class="fen-container">
+                <label for="fen">FEN</label>
+                <input type="text" id="fen" placeholder="Enter FEN or leave empty for start position">
+            </div>
+            
+            <div class="move-container">
+                <label for="move">MOVE</label>
+                <input type="text" id="move" placeholder="e.g. e2e4">
+            </div>
+        </div>
+        
+        <div class="button-section">
+            <button id="evalPosition">EVAL POSITION</button>
+            <button id="evalMove">EVAL MOVE</button>
+        </div>
+        
+        <div class="result-section">
+            <div id="result"></div>
+        </div>
+
+        <div class="board-container">
+            <div id="board"></div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

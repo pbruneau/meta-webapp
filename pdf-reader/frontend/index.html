@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17202b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>PDF Reader</title>
+  <link rel="stylesheet" href="/pdf-reader/vendor/pdfjs/web/pdf_viewer.css">
+  <link rel="stylesheet" href="/pdf-reader/styles.css">
+</head>
+<body>
+  <main id="app">
+    <section id="libraryView" class="library-view" aria-labelledby="libraryTitle">
+      <header class="library-header">
+        <div>
+          <p class="eyebrow">Meta Webapp</p>
+          <h1 id="libraryTitle">PDF Reader</h1>
+          <p class="subtitle">A synchronized magazine library</p>
+        </div>
+        <a class="filebrowser-link" href="/files/">Manage files</a>
+      </header>
+
+      <section id="continueSection" class="continue-section" hidden>
+        <p class="section-label">Continue reading</p>
+        <button id="continueButton" class="continue-card" type="button"></button>
+      </section>
+
+      <section class="library-browser" aria-labelledby="browseTitle">
+        <div class="browser-heading">
+          <div>
+            <p class="section-label">Library</p>
+            <h2 id="browseTitle">Magazines</h2>
+          </div>
+          <div class="library-actions">
+            <label class="search-field">
+              <span class="visually-hidden">Search magazines</span>
+              <input id="librarySearch" type="search" placeholder="Search magazines" autocomplete="off">
+            </label>
+            <label class="sort-field">
+              <span class="visually-hidden">Sort magazines</span>
+              <select id="librarySort">
+                <option value="name">Name</option>
+                <option value="recent">Recently read</option>
+              </select>
+            </label>
+            <button id="refreshLibrary" class="secondary-button" type="button">Refresh</button>
+          </div>
+        </div>
+
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="Library folders"></nav>
+        <div id="libraryListHeading" class="library-list-heading" aria-hidden="true">
+          <span></span>
+          <span>Name</span>
+          <span>Size</span>
+          <span>Reading</span>
+        </div>
+        <div id="libraryGrid" class="library-list"></div>
+        <div id="emptyLibrary" class="empty-state" hidden>
+          <h3>No PDF files found</h3>
+          <p>Add PDF files to the <strong>Magazines</strong> folder with FileBrowser.</p>
+          <a class="primary-link" href="/files/">Open FileBrowser</a>
+        </div>
+      </section>
+    </section>
+
+    <section id="readerView" class="reader-view" hidden aria-label="PDF reader">
+      <header class="reader-toolbar">
+        <button id="backToLibrary" class="toolbar-button toolbar-button-wide" type="button">Library</button>
+        <button id="closeDocument" class="toolbar-button close-document-button" type="button">Close PDF</button>
+        <button id="toggleSidebar" class="toolbar-button" type="button" aria-expanded="false" aria-controls="readerSidebar">Contents</button>
+        <div id="readerTitle" class="reader-title" title=""></div>
+
+        <div class="toolbar-group page-controls" aria-label="Page navigation">
+          <button id="previousPage" class="toolbar-button compact-button" type="button" title="Previous page">Previous</button>
+          <label class="page-number-label">
+            <span class="visually-hidden">Current page</span>
+            <input id="pageNumber" type="number" min="1" value="1" inputmode="numeric">
+          </label>
+          <span id="pageCount" class="page-count">/ 0</span>
+          <button id="nextPage" class="toolbar-button compact-button" type="button" title="Next page">Next</button>
+        </div>
+
+        <div class="toolbar-group zoom-controls" aria-label="Zoom controls">
+          <button id="zoomOut" class="toolbar-button compact-button" type="button" title="Zoom out">-</button>
+          <label>
+            <span class="visually-hidden">Zoom mode</span>
+            <select id="scaleMode" class="toolbar-select">
+              <option value="page-width">Page width</option>
+              <option value="page-fit">Page fit</option>
+              <option value="auto">Automatic</option>
+              <option value="custom" disabled>Custom</option>
+            </select>
+          </label>
+          <button id="zoomIn" class="toolbar-button compact-button" type="button" title="Zoom in">+</button>
+        </div>
+
+        <form id="findForm" class="find-form" role="search">
+          <label>
+            <span class="visually-hidden">Search inside the PDF</span>
+            <input id="findInput" type="search" placeholder="Find in PDF" autocomplete="off">
+          </label>
+          <button class="toolbar-button compact-button" type="submit">Find</button>
+          <button id="findPrevious" class="toolbar-button compact-button" type="button" title="Previous match">Up</button>
+          <span id="findStatus" class="find-status" aria-live="polite"></span>
+        </form>
+      </header>
+
+      <div id="readerBody" class="reader-body">
+        <aside id="readerSidebar" class="reader-sidebar" hidden>
+          <div class="sidebar-tabs" role="tablist" aria-label="Document navigation">
+            <button id="thumbnailsTab" class="sidebar-tab active" type="button" role="tab" aria-selected="true">Pages</button>
+            <button id="outlineTab" class="sidebar-tab" type="button" role="tab" aria-selected="false">Outline</button>
+          </div>
+          <div id="thumbnailPanel" class="sidebar-panel" role="tabpanel">
+            <div id="thumbnailView"></div>
+          </div>
+          <div id="outlinePanel" class="sidebar-panel" role="tabpanel" hidden>
+            <div id="outlineView" class="outline-view"></div>
+          </div>
+        </aside>
+        <button id="sidebarScrim" class="sidebar-scrim" type="button" aria-label="Close contents" hidden></button>
+        <div class="viewer-shell">
+          <div id="viewerContainer" tabindex="0">
+            <div id="viewer" class="pdfViewer"></div>
+          </div>
+          <div id="readerLoading" class="reader-loading" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="readerLoadingText">Opening magazine</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="appLoading" class="app-loading">
+    <div class="spinner" aria-hidden="true"></div>
+    <p>Loading library</p>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="/pdf-reader/app.js"></script>
+</body>
+</html>

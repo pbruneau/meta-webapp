@@ -1,0 +1,15 @@
+.App {
+    text-align: center;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  h1 {
+    color: #333;
+  }
+
+.padding-vertical {
+padding-top: 20px;
+padding-bottom: 20px;
+}

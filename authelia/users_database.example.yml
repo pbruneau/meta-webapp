@@ -1,0 +1,6 @@
+# Copy to users_database.yml and replace every example identity and verifier.
+users:
+  example:
+    password: <replace-with-generated-argon2id-verifier>
+    displayname: Example User
+    email: example@example.com

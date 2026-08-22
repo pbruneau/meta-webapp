@@ -1,0 +1,162 @@
+services:
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    user: "1000:1000"
+    volumes:
+      - ./authelia:/config
+    environment:
+      - TZ=Europe/Paris
+      - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=/config/secrets/reset-password-jwt-secret
+      - AUTHELIA_SESSION_SECRET_FILE=/config/secrets/session-secret
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/config/secrets/storage-encryption-key
+    networks:
+      - web
+    restart: unless-stopped
+    profiles:
+      - open
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${LAN_HTTP_PORT:-6080}:6080"
+    volumes:
+      - ./nginx/nginx-${DEPLOY_MODE:-open}.conf:/etc/nginx/conf.d/default.conf
+      - /etc/letsencrypt:/etc/letsencrypt  # SSL certificates
+      - /var/www/certbot:/var/www/certbot
+      - ./index.html:/usr/share/nginx/html/index.html  # Index page
+      - ./filebrowser/data/public_share:/usr/share/nginx/html/hosted_files
+    depends_on:
+      - desutom-backend
+      - desutom-frontend
+      - react-latex
+      - chess-visualizer
+      - stockfish-api
+      - stockfish-ui
+      - pdf-reader
+    networks:
+      - web
+    restart: unless-stopped
+    environment:
+      - DEPLOY_MODE=${DEPLOY_MODE:-open}
+    
+  # DESUTOM backend
+  desutom-backend:
+    build:
+      context: ./desutom
+      dockerfile: backend/Dockerfile
+    volumes:
+      - ./desutom/backend:/app
+    expose:
+      - "5000"
+    networks:
+      - web
+    restart: unless-stopped
+
+  # DESUTOM frontend
+  desutom-frontend:
+    build:
+      context: ./desutom/frontend
+      dockerfile: Dockerfile
+    expose:
+      - "3000"
+    networks:
+      - web
+    restart: unless-stopped
+
+  # LaTeX Renderer
+  react-latex:
+    build:
+      context: ./react-latex
+    expose:
+      - "3001"
+    networks:
+      - web
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    depends_on:
+      - nginx
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL:-admin@example.invalid} --agree-tos --no-eff-email --non-interactive --force-renewal -d ${PUBLIC_DOMAIN:-example.invalid}
+    profiles:
+      - open
+
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    command: --database /database/filebrowser.db
+    volumes:
+      - ./filebrowser/data:/srv
+      - ./filebrowser/config:/config
+      - ./filebrowser/database:/database
+    networks:
+      - web
+    restart: unless-stopped
+
+  # Synchronized PDF reader
+  pdf-reader:
+    build: ./pdf-reader
+    container_name: pdf-reader
+    user: "1000:1000"
+    environment:
+      - LIBRARY_ROOT=/library
+      - DATABASE_PATH=/data/pdf-reader.sqlite3
+      - STATIC_ROOT=/app/static
+    volumes:
+      - ./filebrowser/data/Magazines:/library:ro
+      - ./pdf-reader/data:/data
+    expose:
+      - "8000"
+    networks:
+      - web
+    restart: unless-stopped
+
+  patcher:
+    build: ./patcher
+    container_name: patcher
+    user: "1000:1000"
+    volumes:
+      - ./filebrowser/data/public_share:/share
+    networks:
+      - web
+    expose:
+      - "7000"
+    restart: unless-stopped
+
+  # Chess Visualizer
+  chess-visualizer:
+    build:
+      context: ./chess-visualizer
+    expose:
+      - "3002"
+    networks:
+      - web
+    restart: unless-stopped
+
+  stockfish-api:
+    build: ./stockfish-chess/api
+    networks:
+      - web
+    restart: unless-stopped
+
+  # Stockfish UI
+  stockfish-ui:
+    build: ./stockfish-chess/ui
+    depends_on:
+      - stockfish-api
+    networks:
+      - web
+    restart: unless-stopped    
+
+networks:
+  web:
+    external: false
