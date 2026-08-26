@@ -90,6 +90,7 @@ let documentGeneration = 0;
 let thumbnailObserver = null;
 let lastLocalPosition = null;
 let resizeTimer = null;
+let lastViewerWidth = null;
 let selectedLibraryRow = null;
 let wheelUnusedFactor = 1;
 let touchUnusedFactor = 1;
@@ -1084,6 +1085,7 @@ function handleTrackpadPinch(event) {
 
 
 eventBus.on("pagesinit", async () => {
+  lastViewerWidth = elements.viewerContainer.clientWidth;
   pdfViewer.currentScaleValue = "page-width";
   if (pendingRestore) {
     const restore = pendingRestore;
@@ -1204,6 +1206,19 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", saveForPageExit);
 window.addEventListener("resize", () => {
+  if (Math.abs((window.visualViewport?.scale ?? 1) - 1) > 0.001) {
+    return;
+  }
+  const viewerWidth = elements.viewerContainer.clientWidth;
+  if (viewerWidth <= 0) {
+    lastViewerWidth = null;
+    return;
+  }
+  const previousWidth = lastViewerWidth;
+  lastViewerWidth = viewerWidth;
+  if (previousWidth === null || Math.abs(viewerWidth - previousWidth) < 1) {
+    return;
+  }
   if (!pdfDocument || pendingRestore || restoringPosition) {
     return;
   }
@@ -1213,6 +1228,9 @@ window.addEventListener("resize", () => {
   }
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
+    if (Math.abs(elements.viewerContainer.clientWidth - viewerWidth) >= 1) {
+      return;
+    }
     restorePosition(position);
   }, 180);
 });
