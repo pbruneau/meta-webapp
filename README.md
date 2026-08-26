@@ -91,7 +91,7 @@ The identity file contains one `username role` pair per line. Supported roles ar
 `admin` and `user`. Passwords are requested with hidden terminal input and are not
 written to disk by the script.
 
-## Deployment and destruction
+## Deployment
 
 ```bash
 ./deploy.sh lan --build
@@ -100,17 +100,6 @@ written to disk by the script.
 
 LAN mode is available at `http://HOST:6080/`. The configured open deployment is
 available at `https://pbruneau.ddns.net/`.
-
-To stop and remove the deployment across all profiles, run:
-
-```bash
-./destroy.sh
-```
-
-The destruction script removes the Compose containers, project network, orphaned
-containers, and any Docker-managed named or anonymous volumes. Bind-mounted
-runtime data, local deployment profiles, TLS certificates, and cached images are
-preserved.
 
 ## Fresh Git history and Raspberry Pi cutover
 

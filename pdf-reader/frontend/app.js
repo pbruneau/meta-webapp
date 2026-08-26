@@ -90,22 +90,10 @@ let documentGeneration = 0;
 let thumbnailObserver = null;
 let lastLocalPosition = null;
 let resizeTimer = null;
-let lastViewerWidth = null;
 let selectedLibraryRow = null;
 let wheelUnusedFactor = 1;
 let touchUnusedFactor = 1;
-const touchManagerAbortController = new AbortController();
-const touchManager = new pdfjsLib.TouchManager({
-  container: elements.viewerContainer,
-  isPinchingDisabled: () => !pdfDocument || elements.readerView.hidden,
-  onPinchStart: () => {
-    touchUnusedFactor = 1;
-  },
-  onPinching: handleTouchPinch,
-  onPanning: handleTouchPan,
-  onPinchEnd: handleTouchPinchEnd,
-  signal: touchManagerAbortController.signal,
-});
+let touchPinch = null;
 
 
 async function api(path, options = {}) {
@@ -477,7 +465,6 @@ async function closeCurrentDocument() {
 async function disposeCurrentDocument() {
   clearTimeout(saveTimer);
   saveTimer = null;
-  touchUnusedFactor = 1;
   await flushCapturedPosition();
   pendingRestore = null;
   restoringPosition = false;
@@ -989,28 +976,27 @@ function setCustomScale(multiplier) {
 
 
 function accumulateScaleFactor(previousScale, factor, source) {
-  if (factor === 1) {
+  let unusedFactor = source === "touch" ? touchUnusedFactor : wheelUnusedFactor;
+  if ((unusedFactor > 1 && factor < 1) || (unusedFactor < 1 && factor > 1)) {
+    unusedFactor = 1;
+  }
+
+  const accumulatedFactor =
+    Math.floor(previousScale * factor * unusedFactor * 100) / (100 * previousScale);
+  if (!Number.isFinite(accumulatedFactor) || accumulatedFactor <= 0) {
     return 1;
   }
-  const unusedFactor = source === "touch" ? touchUnusedFactor : wheelUnusedFactor;
-  const targetScale = clamp(
-    previousScale * factor * unusedFactor,
-    MIN_READER_SCALE,
-    MAX_READER_SCALE
-  );
-  const roundedScale = Math.round(targetScale * 100) / 100;
-  const nextUnusedFactor = targetScale / roundedScale;
 
   if (source === "touch") {
-    touchUnusedFactor = nextUnusedFactor;
+    touchUnusedFactor = factor / accumulatedFactor;
   } else {
-    wheelUnusedFactor = nextUnusedFactor;
+    wheelUnusedFactor = factor / accumulatedFactor;
   }
-  return roundedScale / previousScale;
+  return accumulatedFactor;
 }
 
 
-function applyGestureScale(scaleFactor, origin, pan = [0, 0]) {
+function applyGestureScale(scaleFactor, origin) {
   if (!pdfDocument || !pdfViewer.currentScale || scaleFactor <= 0) {
     return;
   }
@@ -1020,48 +1006,69 @@ function applyGestureScale(scaleFactor, origin, pan = [0, 0]) {
     MAX_READER_SCALE
   );
   const boundedFactor = targetScale / pdfViewer.currentScale;
-  const scaleChanged = Math.abs(boundedFactor - 1) >= 0.0001;
-  const [panX, panY] = pan;
-  if (!scaleChanged && !panX && !panY) {
+  if (Math.abs(boundedFactor - 1) < 0.0001) {
     return;
   }
   pdfViewer.updateScale({
     drawingDelay: ZOOM_DRAWING_DELAY_MS,
     scaleFactor: boundedFactor,
     origin,
-    pan,
   });
-  if (scaleChanged) {
-    elements.scaleMode.value = "custom";
-  }
+  elements.scaleMode.value = "custom";
   queueCapturedPosition(ZOOM_DRAWING_DELAY_MS + 100);
 }
 
 
-function handleTouchPinch(origin, previousDistance, distance, panX, panY) {
-  if (!pdfDocument || elements.readerView.hidden) {
+function touchGeometry(touches) {
+  const first = touches[0];
+  const second = touches[1];
+  return {
+    distance: Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
+    origin: [(first.clientX + second.clientX) / 2, (first.clientY + second.clientY) / 2],
+  };
+}
+
+
+function handleTouchStart(event) {
+  if (!pdfDocument || elements.readerView.hidden || event.touches.length !== 2) {
+    return;
+  }
+  event.preventDefault();
+  touchUnusedFactor = 1;
+  touchPinch = touchGeometry(event.touches);
+}
+
+
+function handleTouchMove(event) {
+  if (!touchPinch || event.touches.length !== 2) {
+    return;
+  }
+  event.preventDefault();
+  const geometry = touchGeometry(event.touches);
+  if (geometry.distance <= 0 || touchPinch.distance <= 0) {
     return;
   }
   const factor = accumulateScaleFactor(
     pdfViewer.currentScale,
-    distance / previousDistance,
+    geometry.distance / touchPinch.distance,
     "touch"
   );
-  applyGestureScale(factor, origin, [panX, panY]);
+  touchPinch = geometry;
+  applyGestureScale(factor, geometry.origin);
 }
 
 
-function handleTouchPan(dx, dy) {
-  if (!pdfDocument || elements.readerView.hidden || (!dx && !dy)) {
+function handleTouchEnd(event) {
+  if (!touchPinch || event.touches.length >= 2) {
     return;
   }
-  pdfViewer.panBy(dx, dy);
-  queueCapturedPosition(ZOOM_DRAWING_DELAY_MS + 100);
-}
-
-
-function handleTouchPinchEnd() {
+  if (event.cancelable) {
+    event.preventDefault();
+  }
+  touchPinch = null;
   touchUnusedFactor = 1;
+  pdfViewer.refresh();
+  queueCapturedPosition(150);
 }
 
 
@@ -1085,7 +1092,6 @@ function handleTrackpadPinch(event) {
 
 
 eventBus.on("pagesinit", async () => {
-  lastViewerWidth = elements.viewerContainer.clientWidth;
   pdfViewer.currentScaleValue = "page-width";
   if (pendingRestore) {
     const restore = pendingRestore;
@@ -1189,6 +1195,10 @@ elements.scaleMode.addEventListener("change", () => {
 elements.zoomOut.addEventListener("click", () => setCustomScale(1 / 1.1));
 elements.zoomIn.addEventListener("click", () => setCustomScale(1.1));
 elements.viewerContainer.addEventListener("wheel", handleTrackpadPinch, { passive: false });
+elements.viewerContainer.addEventListener("touchstart", handleTouchStart, { passive: false });
+elements.viewerContainer.addEventListener("touchmove", handleTouchMove, { passive: false });
+elements.viewerContainer.addEventListener("touchend", handleTouchEnd, { passive: false });
+elements.viewerContainer.addEventListener("touchcancel", handleTouchEnd, { passive: false });
 
 elements.findForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -1206,19 +1216,6 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", saveForPageExit);
 window.addEventListener("resize", () => {
-  if (Math.abs((window.visualViewport?.scale ?? 1) - 1) > 0.001) {
-    return;
-  }
-  const viewerWidth = elements.viewerContainer.clientWidth;
-  if (viewerWidth <= 0) {
-    lastViewerWidth = null;
-    return;
-  }
-  const previousWidth = lastViewerWidth;
-  lastViewerWidth = viewerWidth;
-  if (previousWidth === null || Math.abs(viewerWidth - previousWidth) < 1) {
-    return;
-  }
   if (!pdfDocument || pendingRestore || restoringPosition) {
     return;
   }
@@ -1228,9 +1225,6 @@ window.addEventListener("resize", () => {
   }
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (Math.abs(elements.viewerContainer.clientWidth - viewerWidth) >= 1) {
-      return;
-    }
     restorePosition(position);
   }, 180);
 });
