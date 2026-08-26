@@ -5,6 +5,10 @@ import {
   PDFLinkService,
   PDFViewer,
 } from "/pdf-reader/vendor/pdfjs/web/pdf_viewer.mjs";
+import {
+  accumulateRoundedScaleFactor,
+  PinchGestureTracker,
+} from "/pdf-reader/pinch-gesture.mjs";
 
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf-reader/vendor/pdfjs/build/pdf.worker.mjs";
@@ -93,7 +97,9 @@ let resizeTimer = null;
 let selectedLibraryRow = null;
 let wheelUnusedFactor = 1;
 let touchUnusedFactor = 1;
-let touchPinch = null;
+const touchGesture = new PinchGestureTracker({
+  pixelRatio: () => window.devicePixelRatio || 1,
+});
 
 
 async function api(path, options = {}) {
@@ -465,6 +471,8 @@ async function closeCurrentDocument() {
 async function disposeCurrentDocument() {
   clearTimeout(saveTimer);
   saveTimer = null;
+  touchGesture.reset();
+  touchUnusedFactor = 1;
   await flushCapturedPosition();
   pendingRestore = null;
   restoringPosition = false;
@@ -976,27 +984,25 @@ function setCustomScale(multiplier) {
 
 
 function accumulateScaleFactor(previousScale, factor, source) {
-  let unusedFactor = source === "touch" ? touchUnusedFactor : wheelUnusedFactor;
-  if ((unusedFactor > 1 && factor < 1) || (unusedFactor < 1 && factor > 1)) {
-    unusedFactor = 1;
-  }
-
-  const accumulatedFactor =
-    Math.floor(previousScale * factor * unusedFactor * 100) / (100 * previousScale);
-  if (!Number.isFinite(accumulatedFactor) || accumulatedFactor <= 0) {
-    return 1;
-  }
+  const unusedFactor = source === "touch" ? touchUnusedFactor : wheelUnusedFactor;
+  const accumulated = accumulateRoundedScaleFactor({
+    previousScale,
+    factor,
+    unusedFactor,
+    minimumScale: MIN_READER_SCALE,
+    maximumScale: MAX_READER_SCALE,
+  });
 
   if (source === "touch") {
-    touchUnusedFactor = factor / accumulatedFactor;
+    touchUnusedFactor = accumulated.unusedFactor;
   } else {
-    wheelUnusedFactor = factor / accumulatedFactor;
+    wheelUnusedFactor = accumulated.unusedFactor;
   }
-  return accumulatedFactor;
+  return accumulated.scaleFactor;
 }
 
 
-function applyGestureScale(scaleFactor, origin) {
+function applyGestureScale(scaleFactor, origin, pan = [0, 0]) {
   if (!pdfDocument || !pdfViewer.currentScale || scaleFactor <= 0) {
     return;
   }
@@ -1006,66 +1012,73 @@ function applyGestureScale(scaleFactor, origin) {
     MAX_READER_SCALE
   );
   const boundedFactor = targetScale / pdfViewer.currentScale;
-  if (Math.abs(boundedFactor - 1) < 0.0001) {
+  const scaleChanged = Math.abs(boundedFactor - 1) >= 0.0001;
+  if (scaleChanged) {
+    pdfViewer.updateScale({
+      drawingDelay: ZOOM_DRAWING_DELAY_MS,
+      scaleFactor: boundedFactor,
+      origin,
+    });
+    elements.scaleMode.value = "custom";
+  }
+
+  const [panX, panY] = pan;
+  if (panX || panY) {
+    elements.viewerContainer.scrollLeft -= panX;
+    elements.viewerContainer.scrollTop -= panY;
+    // PDF.js 6.2 does not expose updateScale's pan support. Refresh its
+    // internal location immediately so the next scale update keeps this pan.
+    pdfViewer.update();
+  }
+  if (!scaleChanged && !panX && !panY) {
     return;
   }
-  pdfViewer.updateScale({
-    drawingDelay: ZOOM_DRAWING_DELAY_MS,
-    scaleFactor: boundedFactor,
-    origin,
-  });
-  elements.scaleMode.value = "custom";
   queueCapturedPosition(ZOOM_DRAWING_DELAY_MS + 100);
 }
 
 
-function touchGeometry(touches) {
-  const first = touches[0];
-  const second = touches[1];
-  return {
-    distance: Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
-    origin: [(first.clientX + second.clientX) / 2, (first.clientY + second.clientY) / 2],
-  };
-}
-
-
 function handleTouchStart(event) {
-  if (!pdfDocument || elements.readerView.hidden || event.touches.length !== 2) {
+  if (!pdfDocument || elements.readerView.hidden) {
     return;
   }
-  event.preventDefault();
-  touchUnusedFactor = 1;
-  touchPinch = touchGeometry(event.touches);
+  const wasActive = touchGesture.isActive;
+  const isActive = touchGesture.start(event.touches, event.changedTouches);
+  if (isActive && event.cancelable) {
+    event.preventDefault();
+  }
+  if (!wasActive && isActive) {
+    touchUnusedFactor = 1;
+  }
 }
 
 
 function handleTouchMove(event) {
-  if (!touchPinch || event.touches.length !== 2) {
-    return;
-  }
-  event.preventDefault();
-  const geometry = touchGeometry(event.touches);
-  if (geometry.distance <= 0 || touchPinch.distance <= 0) {
-    return;
-  }
-  const factor = accumulateScaleFactor(
-    pdfViewer.currentScale,
-    geometry.distance / touchPinch.distance,
-    "touch"
-  );
-  touchPinch = geometry;
-  applyGestureScale(factor, geometry.origin);
-}
-
-
-function handleTouchEnd(event) {
-  if (!touchPinch || event.touches.length >= 2) {
+  if (!touchGesture.isActive) {
     return;
   }
   if (event.cancelable) {
     event.preventDefault();
   }
-  touchPinch = null;
+  const movement = touchGesture.move(event.touches);
+  if (!movement) {
+    return;
+  }
+  const factor = movement.scaleFactor
+    ? accumulateScaleFactor(pdfViewer.currentScale, movement.scaleFactor, "touch")
+    : 1;
+  applyGestureScale(factor, movement.origin, movement.pan);
+}
+
+
+function handleTouchEnd(event) {
+  const wasActive = touchGesture.isActive;
+  const gestureEnded = touchGesture.end(event.touches);
+  if (wasActive && event.cancelable) {
+    event.preventDefault();
+  }
+  if (!gestureEnded) {
+    return;
+  }
   touchUnusedFactor = 1;
   pdfViewer.refresh();
   queueCapturedPosition(150);
