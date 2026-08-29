@@ -15,6 +15,9 @@ const SAVE_DELAY_MS = 900;
 const ZOOM_DRAWING_DELAY_MS = 250;
 const MIN_READER_SCALE = 0.25;
 const MAX_READER_SCALE = 5;
+const DEFAULT_MOBILE_ZOOM_PERCENT = 200;
+const MIN_MOBILE_ZOOM_PERCENT = 100;
+const MAX_MOBILE_ZOOM_PERCENT = 500;
 
 const elements = {
   appLoading: document.getElementById("appLoading"),
@@ -24,6 +27,7 @@ const elements = {
   continueButton: document.getElementById("continueButton"),
   librarySearch: document.getElementById("librarySearch"),
   librarySort: document.getElementById("librarySort"),
+  mobileZoom: document.getElementById("mobileZoom"),
   refreshLibrary: document.getElementById("refreshLibrary"),
   breadcrumbs: document.getElementById("breadcrumbs"),
   libraryListHeading: document.getElementById("libraryListHeading"),
@@ -94,6 +98,7 @@ let selectedLibraryRow = null;
 let wheelUnusedFactor = 1;
 let touchUnusedFactor = 1;
 let touchPinch = null;
+let mobileZoomPercent = DEFAULT_MOBILE_ZOOM_PERCENT;
 
 
 async function api(path, options = {}) {
@@ -391,6 +396,8 @@ async function loadLibrary({ autoOpen = false } = {}) {
   try {
     const payload = await api("/library");
     documents = payload.documents;
+    mobileZoomPercent = payload.mobileZoomPercent ?? DEFAULT_MOBILE_ZOOM_PERCENT;
+    elements.mobileZoom.value = String(mobileZoomPercent);
     renderContinue(payload.currentDocumentId);
     renderLibraryGrid();
 
@@ -500,6 +507,13 @@ async function openDocument(documentRecord, { updateHistory = true } = {}) {
         `/pdf-reader/?document=${encodeURIComponent(documentRecord.id)}`
       );
     }
+    if (isMobilePlatform()) {
+      if (lastLocalPosition) {
+        await restorePosition(lastLocalPosition);
+      } else {
+        await applyOpeningScale();
+      }
+    }
     await synchronizeVisibleTab();
     return;
   }
@@ -584,13 +598,41 @@ function waitForAnimationFrames(count = 1) {
 }
 
 
+function isMobilePlatform() {
+  if (navigator.userAgentData?.mobile) {
+    return true;
+  }
+  const userAgent = navigator.userAgent || "";
+  if (/Android|iPhone|iPad|iPod/i.test(userAgent)) {
+    return true;
+  }
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+
+async function applyOpeningScale() {
+  pdfViewer.currentScaleValue = "page-width";
+  await waitForAnimationFrames(2);
+  if (!isMobilePlatform()) {
+    return;
+  }
+  const targetScale = clamp(
+    pdfViewer.currentScale * (mobileZoomPercent / 100),
+    MIN_READER_SCALE,
+    MAX_READER_SCALE
+  );
+  pdfViewer.currentScaleValue = String(Math.round(targetScale * 100) / 100);
+  await waitForAnimationFrames(2);
+}
+
+
 async function restorePosition(state) {
   if (!pdfDocument || !state) {
     return;
   }
   restoringPosition = true;
   clearTimeout(saveTimer);
-  pdfViewer.currentScaleValue = "page-width";
+  await applyOpeningScale();
   const pageNumber = Math.min(pdfDocument.numPages, Math.max(1, state.pageNumber || 1));
   pdfViewer.currentPageNumber = pageNumber;
   await waitForAnimationFrames(3);
@@ -1092,12 +1134,12 @@ function handleTrackpadPinch(event) {
 
 
 eventBus.on("pagesinit", async () => {
-  pdfViewer.currentScaleValue = "page-width";
   if (pendingRestore) {
     const restore = pendingRestore;
     pendingRestore = null;
     await restorePosition(restore);
   } else {
+    await applyOpeningScale();
     elements.readerLoading.hidden = true;
   }
 });
@@ -1132,6 +1174,36 @@ eventBus.on("updatefindmatchescount", ({ matchesCount }) => {
 
 elements.librarySearch.addEventListener("input", renderLibraryGrid);
 elements.librarySort.addEventListener("change", renderLibraryGrid);
+elements.mobileZoom.addEventListener("change", async () => {
+  const requestedPercent = Number(elements.mobileZoom.value);
+  if (
+    !Number.isInteger(requestedPercent) ||
+    requestedPercent < MIN_MOBILE_ZOOM_PERCENT ||
+    requestedPercent > MAX_MOBILE_ZOOM_PERCENT
+  ) {
+    elements.mobileZoom.value = String(mobileZoomPercent);
+    showToast(
+      `Mobile zoom must be between ${MIN_MOBILE_ZOOM_PERCENT}% and ${MAX_MOBILE_ZOOM_PERCENT}%`
+    );
+    return;
+  }
+
+  elements.mobileZoom.disabled = true;
+  try {
+    const payload = await api("/settings/mobile-zoom", {
+      method: "PUT",
+      body: JSON.stringify({ percent: requestedPercent }),
+    });
+    mobileZoomPercent = payload.mobileZoomPercent;
+    elements.mobileZoom.value = String(mobileZoomPercent);
+    showToast(`Mobile opening zoom saved at ${mobileZoomPercent}% of Page Width`);
+  } catch (error) {
+    elements.mobileZoom.value = String(mobileZoomPercent);
+    showToast(`Mobile zoom was not saved: ${error.message}`);
+  } finally {
+    elements.mobileZoom.disabled = false;
+  }
+});
 elements.refreshLibrary.addEventListener("click", async () => {
   elements.refreshLibrary.disabled = true;
   try {

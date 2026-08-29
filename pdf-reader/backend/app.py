@@ -13,6 +13,9 @@ from werkzeug.exceptions import HTTPException
 
 
 SAMPLE_SIZE = 1024 * 1024
+DEFAULT_MOBILE_ZOOM_PERCENT = 200
+MIN_MOBILE_ZOOM_PERCENT = 100
+MAX_MOBILE_ZOOM_PERCENT = 500
 
 
 def utc_timestamp() -> str:
@@ -316,6 +319,32 @@ class LibraryStore:
                     (document_id,),
                 )
 
+    def get_mobile_zoom_percent(self) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT value FROM settings WHERE key = 'mobile_zoom_percent'"
+            ).fetchone()
+        if row is None:
+            return DEFAULT_MOBILE_ZOOM_PERCENT
+        try:
+            value = int(row["value"])
+        except (TypeError, ValueError):
+            return DEFAULT_MOBILE_ZOOM_PERCENT
+        if not MIN_MOBILE_ZOOM_PERCENT <= value <= MAX_MOBILE_ZOOM_PERCENT:
+            return DEFAULT_MOBILE_ZOOM_PERCENT
+        return value
+
+    def set_mobile_zoom_percent(self, percent: int) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO settings (key, value)
+                VALUES ('mobile_zoom_percent', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (str(percent),),
+            )
+
     def get_application_state(self) -> dict[str, Any]:
         self.scan_library()
         with self._connect() as connection:
@@ -325,6 +354,7 @@ class LibraryStore:
         current_document_id = current["value"] if current is not None else None
         return {
             "currentDocumentId": current_document_id,
+            "mobileZoomPercent": self.get_mobile_zoom_percent(),
             "readingState": self.get_reading_state(current_document_id)
             if current_document_id
             else None,
@@ -392,6 +422,25 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             abort(400, description="documentId must be a string or null")
         store.set_current_document(document_id)
         return jsonify({"currentDocumentId": document_id})
+
+    @app.put("/pdf-reader/api/settings/mobile-zoom")
+    def update_mobile_zoom():
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            abort(400, description="A JSON object is required")
+        percent = payload.get("percent")
+        if isinstance(percent, bool) or not isinstance(percent, int):
+            abort(400, description="percent must be an integer")
+        if not MIN_MOBILE_ZOOM_PERCENT <= percent <= MAX_MOBILE_ZOOM_PERCENT:
+            abort(
+                400,
+                description=(
+                    "percent must be between "
+                    f"{MIN_MOBILE_ZOOM_PERCENT} and {MAX_MOBILE_ZOOM_PERCENT}"
+                ),
+            )
+        store.set_mobile_zoom_percent(percent)
+        return jsonify({"mobileZoomPercent": percent})
 
     @app.get("/pdf-reader/api/documents/<document_id>/state")
     def document_state(document_id: str):

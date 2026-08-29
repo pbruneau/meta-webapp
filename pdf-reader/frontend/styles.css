@@ -222,7 +222,8 @@ h2 {
 }
 
 .search-field input,
-.sort-field select {
+.sort-field select,
+.mobile-zoom-field {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -233,6 +234,27 @@ h2 {
 
 .search-field input {
   width: min(280px, 62vw);
+}
+
+.mobile-zoom-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-block: 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mobile-zoom-field input {
+  width: 62px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  padding: 4px 5px;
+  text-align: right;
 }
 
 .breadcrumbs {

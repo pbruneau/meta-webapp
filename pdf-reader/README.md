@@ -112,6 +112,13 @@ document destinations. See the [PDF.js setup](frontend/app.js#L1-L43),
 [thumbnail path](frontend/app.js#L810-L882), [outline path](frontend/app.js#L898-L940),
 and [find path](frontend/app.js#L943-L960).
 
+The library page exposes one global mobile opening zoom from 100 to 500 percent.
+It defaults to 200 percent of PDF.js Page Width and is stored in the shared
+`settings` table. Android and Apple mobile clients first calculate Page Width,
+then multiply that scale by the configured percentage. Desktop clients continue
+to open at Page Width. Manual toolbar and pinch zoom remain available after the
+document opens.
+
 ### 4. Saving and restoring reading position
 
 The persisted state is a page number plus a normalized point on that page:
@@ -128,8 +135,9 @@ The anchor corresponds to the horizontal center and 25 percent of the viewer
 height. [`capturePosition()`](frontend/app.js#L631-L680) selects the page crossing
 that viewport point, or the nearest page, and converts the point into page-relative
 coordinates between 0 and 1. [`restorePosition()`](frontend/app.js#L587-L623)
-restores page-width zoom, selects the saved page, waits for rendering, then scrolls
-the normalized point back under the viewport anchor.
+restores Page Width on desktop or the configured Page Width multiplier on mobile,
+selects the saved page, waits for rendering, then scrolls the normalized point
+back under the viewport anchor.
 
 Writes are debounced for 900 ms. A single-slot save queue coalesces rapid scroll
 updates, while leaving an in-flight request to finish. Navigation back to the
@@ -160,7 +168,7 @@ can exist while the service is running.
 | --- | --- | --- |
 | `documents` | Current library index | `id`, `fingerprint`, unique `relative_path`, `size`, `modified_ns`, timestamps |
 | `reading_states` | One position per document | `document_id`, `page_number`, `anchor_x`, `anchor_y`, `updated_at` |
-| `settings` | Global application state | key/value row for `current_document_id` |
+| `settings` | Global application state | key/value rows for `current_document_id` and `mobile_zoom_percent` |
 
 Connections enable foreign keys, wait up to 30 seconds for locks, and use WAL
 journaling. Schema creation is idempotent. The only explicit legacy migration adds
@@ -174,18 +182,20 @@ All JSON API responses set `Cache-Control: no-store`. API `HTTPException`s becom
 | Method and path | Purpose |
 | --- | --- |
 | `GET /pdf-reader/api/health` | Process-level liveness check; does not inspect the library or database |
-| `GET /pdf-reader/api/library` | Rescan and return documents, current document ID, and its reading state |
-| `GET /pdf-reader/api/state` | Rescan and return the global current document ID and reading state |
+| `GET /pdf-reader/api/library` | Rescan and return documents, current document ID, reading state, and mobile zoom |
+| `GET /pdf-reader/api/state` | Rescan and return the global current document ID, reading state, and mobile zoom |
 | `PUT /pdf-reader/api/current-document` | Set a valid document ID or `null` |
+| `PUT /pdf-reader/api/settings/mobile-zoom` | Validate and store the global `percent` from 100 through 500 |
 | `GET /pdf-reader/api/documents/:id/state` | Return `{ "state": null }` or the saved state |
 | `PUT /pdf-reader/api/documents/:id/state` | Validate and upsert `pageNumber`, `anchorX`, and `anchorY` |
 | `GET /pdf-reader/content/:id` | Serve a validated in-library PDF with conditional and Range support |
 | `GET /pdf-reader/` | Serve `index.html` |
 | `GET /pdf-reader/:asset` | Serve frontend and vendored PDF.js assets |
 
-The backend validates `pageNumber >= 1` and both anchors in `[0, 1]`. It does not
-parse PDFs, so it cannot validate the upper page bound. The client clamps a saved
-page to the loaded PDF's actual page count.
+The backend validates `pageNumber >= 1`, both anchors in `[0, 1]`, and an integer
+mobile zoom from 100 through 500. It does not parse PDFs, so it cannot validate
+the upper page bound. The client clamps a saved page to the loaded PDF's actual
+page count.
 
 ## Dependencies and build
 
@@ -278,6 +288,7 @@ Flask itself performs no authentication or authorization.
 - Keeping simultaneously present identical files as separate documents.
 - HTTP byte-range support for PDF content.
 - Basic reading-state validation.
+- Global mobile zoom defaults, validation, update, and restart persistence.
 
 Not covered:
 
@@ -302,7 +313,7 @@ Not covered:
 | Rename state attaches unexpectedly | Rename matching uses sampled content fingerprints. Multiple identical missing files can make rename association ambiguous. |
 | Replaced content is stale or keeps identity | Unchanged path, size, and `mtime_ns` bypass fingerprinting. Large-file fingerprints sample only three regions. PDF responses are privately cacheable for one hour. |
 | Direct `?document=<id>` navigation opens an unexpected view | Initial loading ignores the query parameter and follows the server's current document, or opens the library when none is current. The query parameter is only consumed during `popstate`, so stable deep links are not implemented. |
-| A restored page has different zoom | Only page and normalized position persist. Restore always selects page-width zoom. |
+| A manually selected zoom is lost during restoration | Only page and normalized position persist. Restore selects Page Width on desktop and the global mobile opening zoom on supported mobile clients. |
 | Search misses visible words | Search uses the PDF text layer. Image-only scans have no OCR. |
 | Database startup fails or stalls | UID 1000 needs write access to the data directory. SQLite waits up to 30 seconds for a lock. WAL sidecar handling matters during manual backups. |
 | A public health probe receives `302` | Open mode authenticates the API as well as the UI. Use the container health status, a direct internal request, or an authenticated external monitor. |

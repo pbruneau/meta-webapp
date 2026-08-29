@@ -126,6 +126,49 @@ class PdfReaderApiTest(unittest.TestCase):
         )
         self.assertEqual(response.get_json()["state"]["pageNumber"], 23)
 
+    def test_mobile_zoom_setting_is_global_and_survives_restart(self):
+        response = self.client.get("/pdf-reader/api/library")
+        self.assertEqual(response.get_json()["mobileZoomPercent"], 200)
+
+        response = self.client.put(
+            "/pdf-reader/api/settings/mobile-zoom", json={"percent": 275}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["mobileZoomPercent"], 275)
+
+        response = self.client.get("/pdf-reader/api/state")
+        self.assertEqual(response.get_json()["mobileZoomPercent"], 275)
+
+        restarted_app = create_app(
+            {
+                "TESTING": True,
+                "LIBRARY_ROOT": str(self.library),
+                "DATABASE_PATH": str(self.database),
+                "STATIC_ROOT": str(
+                    Path(__file__).resolve().parent.parent / "frontend"
+                ),
+            }
+        )
+        response = restarted_app.test_client().get("/pdf-reader/api/library")
+        self.assertEqual(response.get_json()["mobileZoomPercent"], 275)
+
+    def test_mobile_zoom_validation(self):
+        invalid_payloads = [
+            None,
+            {},
+            {"percent": True},
+            {"percent": 99},
+            {"percent": 501},
+            {"percent": 200.5},
+            {"percent": "200"},
+        ]
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.put(
+                    "/pdf-reader/api/settings/mobile-zoom", json=payload
+                )
+                self.assertEqual(response.status_code, 400)
+
     def test_document_id_survives_a_rename(self):
         document = self.create_document("Issue 1.pdf")
         (self.library / "Issue 1.pdf").rename(self.library / "Renamed.pdf")
