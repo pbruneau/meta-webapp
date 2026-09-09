@@ -188,7 +188,7 @@ All JSON API responses set `Cache-Control: no-store`. API `HTTPException`s becom
 | `PUT /pdf-reader/api/settings/mobile-zoom` | Validate and store the global `percent` from 100 through 500 |
 | `GET /pdf-reader/api/documents/:id/state` | Return `{ "state": null }` or the saved state |
 | `PUT /pdf-reader/api/documents/:id/state` | Validate and upsert `pageNumber`, `anchorX`, and `anchorY` |
-| `GET /pdf-reader/content/:id` | Serve a validated in-library PDF with conditional and Range support |
+| `GET /pdf-reader/content/:id` | Serve a validated in-library PDF with conditional and Range support; `?download=1` serves it as an attachment |
 | `GET /pdf-reader/` | Serve `index.html` |
 | `GET /pdf-reader/:asset` | Serve frontend and vendored PDF.js assets |
 
@@ -320,10 +320,9 @@ Not covered:
 | Additional Gunicorn workers behave oddly | Startup clearing and scan locking are not designed for multiple worker processes. Keep the configured single worker unless those semantics are redesigned. |
 | A custom URL prefix fails | `/pdf-reader/` is hard-coded in backend routes, frontend asset URLs, API URLs, history URLs, Nginx, and the health check. |
 
-Other scope limits include no upload endpoint, no download or print controls, no
-application-level annotation or form-state persistence, no OCR, and no background
-library watcher. New files become visible on the next library load or manual
-refresh.
+Other scope limits include no upload endpoint, no print controls, no application-level
+annotation or form-state persistence, no OCR, and no background library watcher.
+New files become visible on the next library load or manual refresh.
 
 ## Change guide
 

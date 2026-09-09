@@ -479,7 +479,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         return send_file(
             path,
             mimetype="application/pdf",
-            as_attachment=False,
+            as_attachment=request.args.get("download") == "1",
             download_name=document["name"],
             conditional=True,
             etag=document["id"],

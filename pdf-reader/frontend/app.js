@@ -36,6 +36,7 @@ const elements = {
   backToLibrary: document.getElementById("backToLibrary"),
   closeDocument: document.getElementById("closeDocument"),
   toggleSidebar: document.getElementById("toggleSidebar"),
+  downloadDocument: document.getElementById("downloadDocument"),
   readerBody: document.getElementById("readerBody"),
   readerSidebar: document.getElementById("readerSidebar"),
   sidebarScrim: document.getElementById("sidebarScrim"),
@@ -527,6 +528,9 @@ async function openDocument(documentRecord, { updateHistory = true } = {}) {
   elements.readerLoadingText.textContent = "Opening magazine";
   elements.readerTitle.textContent = documentDisplayName(documentRecord);
   elements.readerTitle.title = documentRecord.path;
+  const contentUrl = `/pdf-reader/content/${encodeURIComponent(documentRecord.id)}`;
+  elements.downloadDocument.href = `${contentUrl}?download=1`;
+  elements.downloadDocument.download = documentRecord.name;
   elements.pageNumber.value = "1";
   elements.pageCount.textContent = "/ 0";
   elements.findInput.value = "";
@@ -548,7 +552,7 @@ async function openDocument(documentRecord, { updateHistory = true } = {}) {
   });
 
   loadingTask = pdfjsLib.getDocument({
-    url: `/pdf-reader/content/${encodeURIComponent(documentRecord.id)}`,
+    url: contentUrl,
     cMapUrl: "/pdf-reader/vendor/pdfjs/cmaps/",
     cMapPacked: true,
     iccUrl: "/pdf-reader/vendor/pdfjs/iccs/",

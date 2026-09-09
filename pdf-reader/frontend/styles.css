@@ -439,6 +439,13 @@ h2 {
   white-space: nowrap;
 }
 
+.download-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  text-decoration: none;
+}
+
 .toolbar-button:hover,
 .toolbar-select:hover {
   background: #354250;

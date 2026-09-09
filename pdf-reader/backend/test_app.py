@@ -199,6 +199,19 @@ class PdfReaderApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 206)
         self.assertEqual(response.data, b"%PDF")
         self.assertEqual(response.headers["Accept-Ranges"], "bytes")
+        self.assertTrue(response.headers["Content-Disposition"].startswith("inline;"))
+        response.close()
+
+    def test_pdf_content_can_be_downloaded(self):
+        document = self.create_document()
+        response = self.client.get(
+            f"/pdf-reader/content/{document['id']}?download=1"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, PDF_CONTENT)
+        disposition = response.headers["Content-Disposition"]
+        self.assertTrue(disposition.startswith("attachment;"))
+        self.assertIn("Issue 1.pdf", disposition)
         response.close()
 
     def test_state_validation(self):
