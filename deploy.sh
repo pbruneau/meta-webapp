@@ -58,15 +58,16 @@ if [ "$MODE" = "open" ]; then
         exit 1
     fi
 
-    REQUIRED_AUTHELIA_FILES=(
+    REQUIRED_OPEN_FILES=(
         authelia/users_database.yml
         authelia/secrets/reset-password-jwt-secret
         authelia/secrets/session-secret
         authelia/secrets/storage-encryption-key
+        ddclient/ddclient.conf
     )
-    for required_file in "${REQUIRED_AUTHELIA_FILES[@]}"; do
+    for required_file in "${REQUIRED_OPEN_FILES[@]}"; do
         if [ ! -r "$required_file" ]; then
-            echo "Missing or unreadable Authelia runtime file: $required_file" >&2
+            echo "Missing or unreadable open-mode runtime file: $required_file" >&2
             exit 1
         fi
     done

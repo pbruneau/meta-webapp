@@ -20,10 +20,40 @@ cp .env.open.example .env.open
 file consumed by Docker Compose. Open mode requires `PUBLIC_DOMAIN` and
 `CERTBOT_EMAIL`.
 
-The open Nginx and Authelia configuration currently contains the production
-domain in structural settings that cannot be supplied through simple environment
-variables. Changing the domain therefore also requires updates to
-`nginx/nginx-open.conf` and `authelia/configuration.yml`.
+`PUBLIC_DOMAIN` is the single source of the public host name. It is injected into
+`nginx/nginx-open.conf` (rendered by the Nginx image's `envsubst` template
+mechanism, restricted to this one variable), into `authelia/configuration.yml`
+(Authelia template filter), and into the Certbot command. The certificate covers
+`PUBLIC_DOMAIN` and `www.PUBLIC_DOMAIN`, and the `www` host is redirected to
+`PUBLIC_DOMAIN`. Changing the domain requires only editing `.env.open` and
+redeploying, once DNS is updated and a certificate for the new name is issued.
+
+## DNS and dynamic IP
+
+The open deployment is served at `pbruneau.fr`, registered at OVH. The DNS zone
+holds:
+
+| Record | Content |
+| --- | --- |
+| `pbruneau.fr` A | Home public IP, maintained as an OVH DynHost record |
+| `www` CNAME | `pbruneau.fr.` |
+
+No other record (A, AAAA, TXT) may exist on `www`, because a CNAME cannot coexist
+with other records on the same name. No AAAA record may exist on either name,
+because Let's Encrypt prefers IPv6 during validation. The router forwards ports 80
+and 443 to the host.
+
+The `ddclient` service (`open` profile) refreshes the DynHost record every 5
+minutes. Its configuration holds the DynHost credentials and is not tracked:
+
+```bash
+cp ddclient/ddclient.conf.example ddclient/ddclient.conf
+chmod 600 ddclient/ddclient.conf
+```
+
+The DynHost login and password are created in the OVH manager under Domain names,
+`pbruneau.fr`, DynHost, Manage accesses. They are distinct from the OVH account
+credentials.
 
 ## Runtime data and secrets
 
@@ -32,6 +62,7 @@ The following paths are local runtime state and must remain outside Git:
 | Path | Purpose |
 | --- | --- |
 | `.env`, `.env.lan`, `.env.open` | Active local deployment profiles |
+| `ddclient/ddclient.conf` | OVH DynHost credentials of the dynamic IP updater |
 | `authelia/secrets/` | Reset JWT, session, and storage encryption secrets |
 | `authelia/users_database.yml` | Real identities and password verifiers |
 | `authelia/db.sqlite3*` | Authelia persistent state and SQLite sidecars |
@@ -72,8 +103,8 @@ database remains compatible. A future key rotation must use Authelia's
 
 3. Set the directory to mode `0700` and each secret file to mode `0600`.
 
-Open-mode deployment stops during preflight when any required Authelia runtime
-file is missing or unreadable.
+Open-mode deployment stops during preflight when any required runtime file
+(Authelia files or `ddclient/ddclient.conf`) is missing or unreadable.
 
 ## FileBrowser initialization
 
@@ -99,7 +130,7 @@ written to disk by the script.
 ```
 
 LAN mode is available at `http://HOST:6080/`. The configured open deployment is
-available at `https://pbruneau.ddns.net/`.
+available at `https://pbruneau.fr/`.
 
 ## Fresh Git history and Raspberry Pi cutover
 
@@ -131,6 +162,7 @@ For the Raspberry Pi cutover:
    authelia/notification.txt
    authelia/users_database.yml
    authelia/secrets/
+   ddclient/ddclient.conf
    .env.open
    ```
 

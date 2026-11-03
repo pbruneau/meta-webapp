@@ -1,0 +1,22 @@
+# Copy to ddclient/ddclient.conf, fill in the DynHost credentials, then:
+#   chmod 600 ddclient/ddclient.conf
+# The file must be owned by UID 1000 (the PUID of the ddclient container).
+
+daemon=300
+syslog=yes
+ssl=yes
+
+# Public IPv4 detection
+usev4=webv4, webv4=ipify-ipv4
+
+# OVH DynHost (dyndns2 protocol).
+# login: DynHost identifier created in the OVH manager (Domain names >
+#        pbruneau.fr > DynHost > Manage accesses), usually <domain>-<suffix>
+# password: password set for that identifier (not the OVH account password)
+protocol=dyndns2
+server=dns.eu.ovhapis.com
+login=pbruneau.fr-CHANGEME
+password='CHANGEME'
+
+# Hostname of the DynHost record. The www host is a CNAME to this name.
+pbruneau.fr

@@ -10,6 +10,8 @@ services:
       - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=/config/secrets/reset-password-jwt-secret
       - AUTHELIA_SESSION_SECRET_FILE=/config/secrets/session-secret
       - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/config/secrets/storage-encryption-key
+      - X_AUTHELIA_CONFIG_FILTERS=template
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
     networks:
       - web
     restart: unless-stopped
@@ -25,7 +27,7 @@ services:
       - "${HTTPS_PORT:-443}:443"
       - "${LAN_HTTP_PORT:-6080}:6080"
     volumes:
-      - ./nginx/nginx-${DEPLOY_MODE:-open}.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/nginx-${DEPLOY_MODE:-open}.conf:/etc/nginx/templates/default.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt  # SSL certificates
       - /var/www/certbot:/var/www/certbot
       - ./index.html:/usr/share/nginx/html/index.html  # Index page
@@ -43,6 +45,10 @@ services:
     restart: unless-stopped
     environment:
       - DEPLOY_MODE=${DEPLOY_MODE:-open}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
+      # Only PUBLIC_DOMAIN is substituted in the Nginx template, so Nginx
+      # variables such as $host and $request_uri are preserved.
+      - NGINX_ENVSUBST_FILTER=^PUBLIC_DOMAIN$$
     
   # DESUTOM backend
   desutom-backend:
@@ -86,7 +92,23 @@ services:
       - /var/www/certbot:/var/www/certbot
     depends_on:
       - nginx
-    command: certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL:-admin@example.invalid} --agree-tos --no-eff-email --non-interactive --force-renewal -d ${PUBLIC_DOMAIN:-example.invalid}
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ${CERTBOT_EMAIL:-admin@example.invalid} --agree-tos --no-eff-email --non-interactive --force-renewal --cert-name ${PUBLIC_DOMAIN:-example.invalid} -d ${PUBLIC_DOMAIN:-example.invalid} -d www.${PUBLIC_DOMAIN:-example.invalid}
+    profiles:
+      - open
+
+  # Keeps the OVH DynHost record in sync with the dynamic public IP
+  ddclient:
+    image: lscr.io/linuxserver/ddclient:latest
+    container_name: ddclient
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - ./ddclient:/config
+    networks:
+      - web
+    restart: unless-stopped
     profiles:
       - open
 

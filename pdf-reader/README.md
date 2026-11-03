@@ -239,12 +239,13 @@ mount, and database details remain repository-derived. Open mode routes requests
 as follows:
 
 1. Port 80 redirects to HTTPS, except for the ACME challenge path.
-2. Nginx terminates TLS and HTTP/2 for `pbruneau.ddns.net`.
+2. Nginx terminates TLS and HTTP/2 for `PUBLIC_DOMAIN` (`pbruneau.fr`), and
+   redirects `www.` to it.
 3. `/pdf-reader` redirects to `/pdf-reader/`.
 4. Every `/pdf-reader/` request runs the internal `/authelia-verify` subrequest.
    Nginx supplies the original absolute URL through `X-Original-URL`.
 5. Authelia uses a domain cookie, a default-deny policy, and a one-factor rule for
-   `pbruneau.ddns.net`.
+   `PUBLIC_DOMAIN`.
 6. An authentication failure becomes a `302` to
    `/authelia/login?redirect=<original request URI>`.
 7. An accepted request is proxied, with its `/pdf-reader/` prefix intact, to
@@ -274,7 +275,7 @@ docker compose logs -f pdf-reader
 ```
 
 The LAN URL is `http://HOST:6080/pdf-reader/`. The configured public URL is
-`https://pbruneau.ddns.net/pdf-reader/` and is protected at Nginx by Authelia.
+`https://pbruneau.fr/pdf-reader/` and is protected at Nginx by Authelia.
 Flask itself performs no authentication or authorization.
 
 ## Tests
