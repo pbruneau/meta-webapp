@@ -51,6 +51,24 @@ cp ddclient/ddclient.conf.example ddclient/ddclient.conf
 chmod 600 ddclient/ddclient.conf
 ```
 
+### First certificate
+
+Nginx refuses to start without `/etc/letsencrypt/live/PUBLIC_DOMAIN/`, and the
+Certbot service needs a running Nginx for its webroot challenge. For a new domain,
+issue the first certificate once with a standalone challenge (port 80 must be free,
+so Nginx must be stopped):
+
+```bash
+docker compose --profile open stop nginx
+docker run --rm -p 80:80 -v /etc/letsencrypt:/etc/letsencrypt certbot/certbot \
+  certonly --standalone --cert-name PUBLIC_DOMAIN \
+  -d PUBLIC_DOMAIN -d www.PUBLIC_DOMAIN \
+  --email CERTBOT_EMAIL --agree-tos --no-eff-email --non-interactive
+./deploy.sh open
+```
+
+Later deployments reuse the webroot challenge served by the running Nginx.
+
 The DynHost login and password are created in the OVH manager under Domain names,
 `pbruneau.fr`, DynHost, Manage accesses. They are distinct from the OVH account
 credentials.
